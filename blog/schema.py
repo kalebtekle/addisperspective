@@ -14,31 +14,37 @@ class AuthorType(DjangoObjectType):
     class Meta:
         model = models.Profile
 
+class InteractionsType(graphene.ObjectType):
+    likes = graphene.Int()
+    dislikes = graphene.Int()
+    shares = graphene.Int()
 
 class PostType(DjangoObjectType):
     class Meta:
         model = models.Post
-        fields = ("id", "title", "body", "likes", "dislikes", "shares")
+    interactions = graphene.Field(InteractionsType)
 
-
+    def resolve_interactions(self, info):
+        try:
+            return models.Interaction.objects.get(post=self)
+        except models.Interaction.DoesNotExist:
+            return None
 class TagType(DjangoObjectType):
     class Meta:
         model = models.Tag
 
 
 class Query(graphene.ObjectType):
-    all_posts = graphene.List(PostType)
+    all_posts = graphene.List(PostType, page=graphene.Int(), page_size=graphene.Int())
+    allPostsCount = graphene.Int()
     author_by_username = graphene.Field(AuthorType, username=graphene.String())
     post_by_slug = graphene.Field(PostType, slug=graphene.String())
     posts_by_author = graphene.List(PostType, username=graphene.String())
     posts_by_tag = graphene.List(PostType, tag=graphene.String())
 
-    def resolve_all_posts(root, info):
-        return (
-            models.Post.objects.prefetch_related("tags")
-            .select_related("author")
-            .all()
-        )
+    def resolve_all_posts(self, info, page=1, page_size=10):
+        offset = (page - 1) * page_size
+        return models.Post.objects.all()[offset:offset + page_size]
 
     def resolve_author_by_username(root, info, username):
         return models.Profile.objects.select_related("user").get(

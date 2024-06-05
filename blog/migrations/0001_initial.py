@@ -50,4 +50,5 @@ class Migration(migrations.Migration):
                 'ordering': ['-publish_date'],
             },
         ),
+        
     ]

@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from blog.models import Profile, Post, Tag
 from django import forms
+from django.db import models
 
 
 
@@ -18,6 +19,10 @@ class TagAdmin(admin.ModelAdmin):
 @admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
     model = Post
+    
+    formfield_overrides = {
+        models.TextField: {'widget': forms.Textarea(attrs={'class': 'tinymce'})},
+    }
        
 
     list_display = (
@@ -28,6 +33,7 @@ class PostAdmin(admin.ModelAdmin):
         "publish_date",
         "published",
         "body",
+        
     )
     list_filter = (
         "published",
