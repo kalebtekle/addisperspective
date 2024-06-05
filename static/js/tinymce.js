@@ -8,6 +8,7 @@ tinymce.init({
         'insertdatetime media table paste code help wordcount'
     ],
     toolbar: 'undo redo | formatselect | bold italic backcolor | \
-              alignleft aligncenter alignright alignjustify | \
-              bullist numlist outdent indent | removeformat | help'
+              alignleft aligncenter alignright alignjustify | styleselect | bold italic | link image | \
+              bullist numlist outdent indent | removeformat | help',
+    content_style: 'p { margin-bottom: 0.05em; }',
 });
