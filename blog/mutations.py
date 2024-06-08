@@ -2,12 +2,12 @@
 
 import graphene
 from graphene import ObjectType, String, ID, Boolean
-from .models import Post, UserInteractions
+from .models import Post, Interaction
 
 class InteractionsType(graphene.ObjectType):
-    likes = graphene.Int()
-    dislikes = graphene.Int()
-    shares = graphene.Int()
+    like = graphene.Int()
+    dislike = graphene.Int()
+    share = graphene.Int()
 
 class UpdateInteractions(graphene.Mutation):
     class Arguments:
@@ -24,14 +24,14 @@ class UpdateInteractions(graphene.Mutation):
         except Post.DoesNotExist:
             return UpdateInteractions(success=False, message="Post not found")
 
-        user_interactions, created = UserInteractions.objects.get_or_create(post=post)
+        user_interactions, created = Interaction.objects.get_or_create(post=post)
 
         if action == "like":
-            user_interactions.likes += 1
+            user_interactions.like += 1
         elif action == "dislike":
-            user_interactions.dislikes += 1
+            user_interactions.dislike += 1
         elif action == "share":
-            user_interactions.shares += 1
+            user_interactions.share += 1
         else:
             return UpdateInteractions(success=False, message="Invalid action")
 

@@ -56,7 +56,7 @@ class Post(models.Model):
 
 class Interaction(models.Model):
     post = models.ForeignKey(Post, related_name='interactions', on_delete=models.CASCADE)
-    likes = models.IntegerField(default=0)
-    dislikes = models.IntegerField(default=0)
-    shares = models.IntegerField(default=0)
+    like = models.IntegerField(default=0)
+    dislike = models.IntegerField(default=0)
+    share = models.IntegerField(default=0)
 
