@@ -1,8 +1,9 @@
 import graphene
 from django.contrib.auth import get_user_model
 from graphene_django import DjangoObjectType
-
 from blog import models
+from .mutations import InteractionsType, Mutation
+
 
 
 class UserType(DjangoObjectType):
@@ -14,25 +15,20 @@ class AuthorType(DjangoObjectType):
     class Meta:
         model = models.Profile
 
-class InteractionsType(graphene.ObjectType):
-    likes = graphene.Int()
-    dislikes = graphene.Int()
-    shares = graphene.Int()
-
 class PostType(DjangoObjectType):
+    interactions = graphene.Field(InteractionsType)
     class Meta:
         model = models.Post
-    interactions = graphene.Field(InteractionsType)
 
     def resolve_interactions(self, info):
-        try:
-            return models.Interaction.objects.get(post=self)
-        except models.Interaction.DoesNotExist:
-            return None
+        interaction = models.Interaction.objects.filter(post=self).first()
+        if interaction:
+            return InteractionsType(like=interaction.like, dislike=interaction.dislike, share=interaction.share)
+        return InteractionsType(like=0, dislike=0, share=0)
+
 class TagType(DjangoObjectType):
     class Meta:
         model = models.Tag
-
 
 class Query(graphene.ObjectType):
     all_posts = graphene.List(PostType, page=graphene.Int(), page_size=graphene.Int())
@@ -41,6 +37,7 @@ class Query(graphene.ObjectType):
     post_by_slug = graphene.Field(PostType, slug=graphene.String())
     posts_by_author = graphene.List(PostType, username=graphene.String())
     posts_by_tag = graphene.List(PostType, tag=graphene.String())
+    post_by_id = graphene.Field(PostType, id=graphene.Int(required= True))
 
     def resolve_all_posts(self, info, page=1, page_size=10):
         offset = (page - 1) * page_size
@@ -57,6 +54,11 @@ class Query(graphene.ObjectType):
             .select_related("author")
             .get(slug=slug)
         )
+    def resolve_post_by_id(self, info, id):
+        try:
+            return models.Post.objects.get(pk=id)
+        except models.Post.DoesNotExist:
+            return None
 
     def resolve_posts_by_author(root, info, username):
         return (
@@ -71,6 +73,7 @@ class Query(graphene.ObjectType):
             .select_related("author")
             .filter(tags__name__iexact=tag)
         )
+    
 
 
-schema = graphene.Schema(query=Query)
+schema = graphene.Schema(query=Query, mutation=Mutation)

@@ -24,7 +24,7 @@ class Tag(models.Model):
 
 class Post(models.Model):
     objects = None
-
+    
     class Meta:
         ordering = ["-publish_date"]
 
@@ -54,9 +54,14 @@ class Post(models.Model):
                 num += 1
         super().save(*args, **kwargs)
 
+
 class Interaction(models.Model):
-    post = models.ForeignKey(Post, related_name='interactions', on_delete=models.CASCADE)
+    post = models.OneToOneField(Post, related_name='interactions', on_delete=models.CASCADE, unique=True)
+    user_id = models.CharField(max_length=100)  # Assuming anonymous users are identified by some unique ID
     like = models.IntegerField(default=0)
     dislike = models.IntegerField(default=0)
     share = models.IntegerField(default=0)
+
+    class Meta:
+        unique_together = ('post', 'user_id')
 
