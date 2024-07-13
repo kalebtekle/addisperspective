@@ -101,25 +101,22 @@ class UpdateInteractions(graphene.Mutation):
         except models.Post.DoesNotExist:
             return UpdateInteractions(success=False, message="Post not found")
 
-        interaction, created = models.Interaction.objects.get_or_create(
-            post=post,
-            session_id=session_id
-        )
+        interaction, created = models.Interaction.objects.get_or_create(post=post, session_id=session_id)
 
         if action == "like":
-            if not interaction.like:
-                interaction.like = True
-                post.like_count += 1
-            if interaction.dislike:
-                interaction.dislike = False
-                post.dislike_count -= 1
-        elif action == "dislike":
-            if not interaction.dislike:
-                interaction.dislike = True
-                post.dislike_count += 1
             if interaction.like:
                 interaction.like = False
                 post.like_count -= 1
+            else:
+                interaction.like = True
+                post.like_count += 1
+        elif action == "dislike":
+            if interaction.dislike:
+                interaction.dislike = False
+                post.dislike_count -= 1
+            else:
+                interaction.dislike = True
+                post.dislike_count += 1
         elif action == "share":
             if not interaction.share:
                 interaction.share = True
