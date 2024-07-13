@@ -2,9 +2,11 @@ import graphene
 from django.contrib.auth import get_user_model
 from graphene_django import DjangoObjectType
 from blog import models
-from .mutations import InteractionsType, Mutation
 
-
+class InteractionsType(graphene.ObjectType):
+    like_count = graphene.Int()
+    dislike_count = graphene.Int()
+    share_count = graphene.Int()
 
 class UserType(DjangoObjectType):
     class Meta:
@@ -17,14 +19,22 @@ class AuthorType(DjangoObjectType):
 
 class PostType(DjangoObjectType):
     interactions = graphene.Field(InteractionsType)
+
     class Meta:
         model = models.Post
+        fields = ('id', 'title', 'subtitle', 'publish_date', 'published', 'meta_description', 'slug', 'body', 'author', 'tags', 'interactions')
 
     def resolve_interactions(self, info):
-        interaction = models.Interaction.objects.filter(post=self).first()
-        if interaction:
-            return InteractionsType(like=interaction.like, dislike=interaction.dislike, share=interaction.share)
-        return InteractionsType(like=0, dislike=0, share=0)
+        interactions = models.Interaction.objects.filter(post=self)
+        like_count = interactions.filter(like=True).count()
+        dislike_count = interactions.filter(dislike=True).count()
+        share_count = interactions.filter(share=True).count()
+        
+        return InteractionsType(
+            like_count=like_count,
+            dislike_count=dislike_count,
+            share_count=share_count
+        )
 
 class TagType(DjangoObjectType):
     class Meta:
@@ -37,7 +47,7 @@ class Query(graphene.ObjectType):
     post_by_slug = graphene.Field(PostType, slug=graphene.String())
     posts_by_author = graphene.List(PostType, username=graphene.String())
     posts_by_tag = graphene.List(PostType, tag=graphene.String())
-    post_by_id = graphene.Field(PostType, id=graphene.Int(required= True))
+    post_by_id = graphene.Field(PostType, id=graphene.ID(required= True))
 
     def resolve_all_posts(self, info, page=1, page_size=10):
         offset = (page - 1) * page_size
@@ -73,7 +83,64 @@ class Query(graphene.ObjectType):
             .select_related("author")
             .filter(tags__name__iexact=tag)
         )
-    
 
+
+class UpdateInteractions(graphene.Mutation):
+    class Arguments:
+        post_id = graphene.ID(required=True)
+        action = graphene.String(required=True)
+        session_id = graphene.String(required=True)
+
+    success = graphene.Boolean()
+    message = graphene.String()
+    interactions = graphene.Field(InteractionsType)
+
+    def mutate(self, info, post_id, action, session_id):
+        try:
+            post = models.Post.objects.get(id=post_id)
+        except models.Post.DoesNotExist:
+            return UpdateInteractions(success=False, message="Post not found")
+
+        interaction, created = models.Interaction.objects.get_or_create(
+            post=post,
+            session_id=session_id
+        )
+
+        if action == "like":
+            if not interaction.like:
+                interaction.like = True
+                post.like_count += 1
+            if interaction.dislike:
+                interaction.dislike = False
+                post.dislike_count -= 1
+        elif action == "dislike":
+            if not interaction.dislike:
+                interaction.dislike = True
+                post.dislike_count += 1
+            if interaction.like:
+                interaction.like = False
+                post.like_count -= 1
+        elif action == "share":
+            if not interaction.share:
+                interaction.share = True
+                post.share_count += 1
+        else:
+            return UpdateInteractions(success=False, message="Invalid action")
+
+        interaction.save()
+        post.save()
+
+        return UpdateInteractions(
+            success=True,
+            message="Interactions updated successfully",
+            interactions=InteractionsType(
+                like_count=post.like_count,
+                dislike_count=post.dislike_count,
+                share_count=post.share_count
+            )
+        )
+ 
+class Mutation(graphene.ObjectType):
+    update_interactions = UpdateInteractions.Field()
 
 schema = graphene.Schema(query=Query, mutation=Mutation)

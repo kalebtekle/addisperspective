@@ -40,6 +40,10 @@ class Post(models.Model):
     author = models.ForeignKey(Profile, on_delete=models.PROTECT)
     tags = models.ManyToManyField(Tag, blank=True)
 
+    like_count = models.IntegerField(default=0)
+    dislike_count = models.IntegerField(default=0)
+    share_count = models.IntegerField(default=0)
+
     def get_absolute_url(self):
         return reverse("blog:post", kwargs={"slug": self.slug})
 
@@ -56,12 +60,13 @@ class Post(models.Model):
 
 
 class Interaction(models.Model):
-    post = models.OneToOneField(Post, related_name='interactions', on_delete=models.CASCADE, unique=True)
-    user_id = models.CharField(max_length=100)  # Assuming anonymous users are identified by some unique ID
-    like = models.IntegerField(default=0)
-    dislike = models.IntegerField(default=0)
-    share = models.IntegerField(default=0)
+    post = models.ForeignKey(Post, related_name='interactions', on_delete=models.CASCADE)
+    session_id = models.CharField(max_length=255)
+    like = models.BooleanField(default=False)
+    dislike = models.BooleanField(default=False)
+    share = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('post', 'user_id')
+        unique_together = ('post', 'session_id')
 
