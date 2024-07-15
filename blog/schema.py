@@ -107,20 +107,31 @@ class UpdateInteractions(graphene.Mutation):
             if interaction.like:
                 interaction.like = False
                 post.like_count -= 1
+                
             else:
                 interaction.like = True
                 post.like_count += 1
+
+                 # If previously disliked, reset dislike
+                if interaction.dislike:
+                    interaction.dislike = False
+                    post.dislike_count -= 1 
+
         elif action == "dislike":
             if interaction.dislike:
                 interaction.dislike = False
                 post.dislike_count -= 1
+                
             else:
                 interaction.dislike = True
                 post.dislike_count += 1
+
+                # If previously liked, reset like
+                if interaction.like:
+                    interaction.like = False
+                    post.like_count -= 1
         elif action == "share":
-            if not interaction.share:
-                interaction.share = True
-                post.share_count += 1
+                    post.share_count += 1
         else:
             return UpdateInteractions(success=False, message="Invalid action")
 
