@@ -11,7 +11,8 @@ SECRET_KEY = "gmkd4-*ew4fv!w8p!9qm(o2-qpmc$&jng-2jm!4l3$x^pn#tmu"
 
 DEBUG = True
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = ['192.168.1.11', '192.168.1.2','localhost', '127.0.0.1']
+
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -118,7 +119,32 @@ CORS_ORIGIN_ALLOW_ALL = False
 CORS_ORIGIN_WHITELIST = ("http://localhost:8000",)
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
+    "http://192.168.1.11:5173",
+    
 ]
+
+# Allow specific HTTP methods
+CORS_ALLOW_METHODS = [
+    'GET',
+    'POST',
+    'PUT',
+    'PATCH',
+    'DELETE',
+    'OPTIONS'
+]
+
+# Allow specific headers
+CORS_ALLOW_HEADERS = [
+    'authorization',
+    'content-type',
+    'x-requested-with',
+    'accept',
+    'origin',
+    'user-agent',
+    'access-control-allow-origin',
+    'x-csrftoken',
+]
+
 
 VITE_PROJECT_ROOT = BASE_DIR / 'frontend'
 VITE_ASSETS_URL = 'http://localhost:3000/'  # URL of your Vite development server
