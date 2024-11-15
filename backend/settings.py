@@ -11,7 +11,7 @@ SECRET_KEY = "gmkd4-*ew4fv!w8p!9qm(o2-qpmc$&jng-2jm!4l3$x^pn#tmu"
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['192.168.1.11', '192.168.1.2','localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['192.168.1.11', '192.168.1.6','localhost', '127.0.0.1']
 
 
 INSTALLED_APPS = [
@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "graphene_django",
+    "graphql_jwt",
     "corsheaders",
     "django_extensions",
     "blog",
@@ -113,14 +114,23 @@ DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 
 GRAPHENE = {
     "SCHEMA": "blog.schema.schema",
+    'MIDDLEWARE': [
+        'graphql_jwt.middleware.JSONWebTokenMiddleware',
+    ],
 }
+
+AUTHENTICATION_BACKENDS = [
+    'graphql_jwt.backends.JSONWebTokenBackend',
+    'django.contrib.auth.backends.ModelBackend',
+    'blog.authentication.EmailBackend',
+]
 
 CORS_ORIGIN_ALLOW_ALL = False
 CORS_ORIGIN_WHITELIST = ("http://localhost:8000",)
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
-    "http://192.168.1.11:5173",
-    
+    "http://192.168.1.6:5173",
+       
 ]
 
 # Allow specific HTTP methods

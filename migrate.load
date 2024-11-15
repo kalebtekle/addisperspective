@@ -1,0 +1,16 @@
+LOAD DATABASE
+    FROM sqlite:///C:/Users/Administrator/Desktop/VueProjects/dvg/backend/db.sqlite3
+    INTO postgresql://postgres:Haregwoin99$@34.68.19.103:5432/my-postgresql-instance
+
+WITH include drop, create tables, create indexes, reset sequences
+SET work_mem to '16MB', maintenance_work_mem to '512MB';
+
+-- Add custom mappings or transformations here if needed
+
+-- Example of custom table mappings
+-- TABLES
+--   table_name RENAME TO new_table_name;
+
+
+
+

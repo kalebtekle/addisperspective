@@ -1,0 +1,28 @@
+runtime: python312
+entrypoint: gunicorn -b :8080 backend.wsgi
+env: standard
+instance_class: F1
+
+handlers:
+- url: /static
+  static_dir: static/
+- url: /.*
+  script: auto
+  
+automatic_scaling:
+  min_instances: 1
+  max_instances: 10
+  target_cpu_utilization: 0.65
+
+env_variables:
+  DJANGO_SETTINGS_MODULE: "backend.settings"
+  DB_NAME: "my_blog_database"
+  DB_USER: "postgres"
+  DB_PASSWORD: "Haregwoin99$"
+  DB_HOST: "localhost"  # Required for Cloud SQL Proxy
+  INSTANCE_CONNECTION_NAME: "melkamnet-436315:us-central1-f:my-postgresql-instance"  # Correct instance name format
+  DB_PORT: "5432"  # Set the correct port for PostgreSQL
+
+beta_settings:
+  cloud_sql_instances: "melkamnet-436315:us-central1-f:my-postgresql-instance"
+
