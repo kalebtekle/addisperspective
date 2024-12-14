@@ -10,6 +10,7 @@ class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.PROTECT)
     website = models.URLField(blank=True, null=True)
     bio = models.CharField(max_length=240, blank=True, null=True)
+    image = models.ImageField(upload_to='profile_images/', null=True, blank=True)
 
     def __str__(self):
         return self.user.username
