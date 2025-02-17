@@ -28,14 +28,14 @@ class Post(models.Model):
     
     class Meta:
         ordering = ["-publish_date"]
-
+    id = models.AutoField(primary_key=True)
     title = models.CharField(max_length=255, unique=True)
     subtitle = models.CharField(max_length=255, blank=True, null=False)
     slug = models.SlugField(max_length=255, unique=False)
     body = HTMLField()
     meta_description = models.CharField(max_length=150, blank=True, null=False)
-    date_created = models.DateTimeField(auto_now_add=True)
-    date_modified = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     publish_date = models.DateTimeField(blank=True, null=True)
     published = models.BooleanField(default=False)
     author = models.ForeignKey(Profile, on_delete=models.PROTECT)
@@ -52,10 +52,9 @@ class Post(models.Model):
         # Generate a unique slug based on the post's title
         if not self.slug:
             self.slug = slugify(self.title)
-            # Ensure the slug is unique
-            num = 1
+            num=1
             while Post.objects.filter(slug=self.slug).exists():
-                self.slug = f"{slugify(self.title)}-{num}"
+                self.slug = f'{slugify(self.title)}-{num}'
                 num += 1
         super().save(*args, **kwargs)
 

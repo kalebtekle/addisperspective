@@ -47,7 +47,7 @@ class PostType(DjangoObjectType):
 
     class Meta:
         model = models.Post
-        fields = ('id', 'title', 'subtitle', 'publish_date', 'published', 'meta_description', 'slug', 'body', 'author', 'tags', 'interactions')
+        fields = ('id', 'title', 'subtitle', 'created_at', 'updated_at', 'publish_date', 'published', 'meta_description', 'slug', 'body', 'author', 'tags', 'interactions')
     
     def resolve_is_admin_or_staff(self, info):
         user = info.context.user
@@ -87,12 +87,12 @@ class TagType(DjangoObjectType):
 class CreatePostInput(graphene.InputObjectType):
         title = graphene.String(required=True)
         subtitle = graphene.String(required=False)
-        publish_date = graphene.DateTime(required=True)
-        published = graphene.Boolean(required=True)
-        metaDescription = graphene.String(required=False)
         slug = graphene.String(required=True)
         body = graphene.String(required=True)
-        tags = graphene.List(graphene.ID, required=False)
+        tags = graphene.List(graphene.String, required=False)
+        author = graphene.String(required=True)
+        createdAt = graphene.DateTime(required=True)
+        updatedAt = graphene.DateTime(required=True)
     
     
 class CreatePostMutation(graphene.Mutation):
@@ -118,14 +118,15 @@ class CreatePostMutation(graphene.Mutation):
         # Create the post
         post = models.Post.objects.create(
             title=input.title,
-            body=input.body,
+            subtitle=input.subtitle,
             slug=input.slug,
-            author=user,  # Assuming the logged-in user is the author
-            meta_description=input.meta_description,
-            publish_date=input.publish_date,
-            published=input.published,
+            body=input.body,
+            author=user.profile,
+            created_at=input.createdAt,
+            updated_at=input.updatedAt,
         )
-        post.tags.set(input.tags)
+        if input.tags:
+            post.tags.set(input.tags)
         return CreatePostMutation(success=True, post=post, message="Post created successfully.")
 
 class Query(graphene.ObjectType):
