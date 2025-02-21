@@ -100,6 +100,7 @@ class CreatePostMutation(graphene.Mutation):
         input = CreatePostInput(required=True)
 
     post = graphene.Field(PostType)
+    next_post_id = graphene.Int() # Return the predicted next ID
     success = graphene.Boolean()
     message = graphene.String()
 
@@ -127,7 +128,11 @@ class CreatePostMutation(graphene.Mutation):
         )
         if input.tags:
             post.tags.set(input.tags)
-        return CreatePostMutation(success=True, post=post, message="Post created successfully.")
+
+        # Get the last post and predict the next ID
+        last_post = models.Post.objects.order_by('-id').first()
+        next_post_id = (last_post.id + 1) if last_post else 1  # If no posts exist, start from 1
+        return CreatePostMutation(success=True, post=post, next_id=next_post_id, message="Post created successfully.")
 
 class Query(graphene.ObjectType):
     me=graphene.Field(UserType)
