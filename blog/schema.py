@@ -5,6 +5,7 @@ import graphql_jwt
 from graphql_jwt.shortcuts import  get_token
 from blog import models
 from django.contrib.auth import get_user_model
+from blog.models import Post, Profile
 
 class InteractionsType(graphene.ObjectType):
     like_count = graphene.Int()
@@ -44,10 +45,11 @@ class PostType(DjangoObjectType):
     is_admin_or_staff = graphene.Boolean()
     formatted_date = graphene.String()
     author = graphene.Field(ProfileType)
+    excerpt = graphene.String()
 
     class Meta:
         model = models.Post
-        fields = ('id', 'title', 'subtitle', 'created_at', 'updated_at', 'publish_date', 'published', 'meta_description', 'slug', 'body', 'author', 'tags', 'interactions')
+        fields = ('id', 'title', 'subtitle', 'excerpt', 'created_at', 'updated_at', 'publish_date', 'published', 'meta_description', 'slug', 'body', 'author', 'tags', 'interactions')
     
     def resolve_is_admin_or_staff(self, info):
         user = info.context.user
@@ -74,7 +76,9 @@ class PostType(DjangoObjectType):
         )
     def resolve_author(self, info):
         return self.author  # Ensure this returns a Profile object
-
+    
+    def resolve_excerpt(self, info):
+        return self.body[:240]  # Return the first 240 characters of the body
 class PaginatedPostType(graphene.ObjectType):
     posts = graphene.List(PostType, required=True)
     total_count = graphene.Int()  # total number of posts
@@ -133,6 +137,37 @@ class CreatePostMutation(graphene.Mutation):
         last_post = models.Post.objects.order_by('-id').first()
         next_post_id = (last_post.id + 1) if last_post else 1  # If no posts exist, start from 1
         return CreatePostMutation(success=True, post=post, next_id=next_post_id, message="Post created successfully.")
+
+class DeletePostMutation(graphene.Mutation):
+    class Arguments:
+        post_id = graphene.ID(required=True)
+
+    success = graphene.Boolean()
+    message = graphene.String()
+
+    @staticmethod
+    def mutate(root, info, post_id):
+        user = info.context.user
+        if not user.is_authenticated:
+            return DeletePostMutation(success=False, message="Permission denied. Please log in.")
+        
+        try:
+            post = Post.objects.get(id=post_id)
+        except Post.DoesNotExist:
+            return DeletePostMutation(success=False, message="Post does not exist.")
+        
+        # Ensure the Profile object exists
+        try:
+            profile = Profile.objects.get(id=post.author.id)
+        except Profile.DoesNotExist:
+            return DeletePostMutation(success=False, message="Author profile does not exist.")
+        
+        # Ensure the user is the author of the post or an admin
+        if user.profile != post.author and not user.is_staff:
+            return DeletePostMutation(success=False, message="You do not have permission to delete this post.")
+        
+        post.delete()
+        return DeletePostMutation(success=True, message="Post deleted successfully.")
 
 class Query(graphene.ObjectType):
     me=graphene.Field(UserType)
@@ -340,5 +375,6 @@ class Mutation(graphene.ObjectType):
     signup = Signup.Field()
     login = Login.Field()
     create_post = CreatePostMutation.Field()
+    delete_post = DeletePostMutation.Field()
 
 schema = graphene.Schema(query=Query, mutation=Mutation)

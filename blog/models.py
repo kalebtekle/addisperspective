@@ -38,12 +38,16 @@ class Post(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     publish_date = models.DateTimeField(blank=True, null=True)
     published = models.BooleanField(default=False)
-    author = models.ForeignKey(Profile, on_delete=models.PROTECT)
+    author = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='posts')
     tags = models.ManyToManyField(Tag, blank=True)
 
     like_count = models.IntegerField(default=0)
     dislike_count = models.IntegerField(default=0)
     share_count = models.IntegerField(default=0)
+
+    @property
+    def excerpt(self):
+        return self.body[:240]
 
     def get_absolute_url(self):
         return reverse("blog:post", kwargs={"slug": self.slug})
