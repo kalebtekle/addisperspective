@@ -169,6 +169,9 @@ class DeletePostMutation(graphene.Mutation):
         post.delete()
         return DeletePostMutation(success=True, message="Post deleted successfully.")
 
+class AdUnitType(DjangoObjectType):
+    class Meta:
+        model = models.AdUnit
 class Query(graphene.ObjectType):
     me=graphene.Field(UserType)
     all_posts = graphene.Field(PaginatedPostType, page=graphene.Int(), page_size=graphene.Int())
@@ -184,6 +187,8 @@ class Query(graphene.ObjectType):
 
     all_profiles = graphene.List(ProfileType)
     user= graphene.Field(UserType)
+
+    ad_units = graphene.List(AdUnitType, position=graphene.String())
 
     def resolve_posts(self, info):
         return models.Post.objects.all()
@@ -242,6 +247,26 @@ class Query(graphene.ObjectType):
         if user.is_authenticated:
             return user
         return None
+    
+    def resolve_ad_units(self, info, position=None):
+        if position:
+            return models.AdUnit.objects.filter(position=position)
+        return models.AdUnit.objects.all()
+    
+class TrackAdImpression(graphene.Mutation):
+    class Arguments:
+        ad_id = graphene.ID(required=True)
+
+    success = graphene.Boolean()
+
+    def mutate(self, info, ad_id):
+        try:
+            ad = models.AdUnit.objects.get(id=ad_id)
+            ad.impressions += 1
+            ad.save()
+            return TrackAdImpression(success=True)
+        except models.AdUnit.DoesNotExist:
+            return TrackAdImpression(success=False)
 class CustomObtainJSONWebToken(graphql_jwt.JSONWebTokenMutation):
     user = graphene.Field(UserType)
     success = graphene.Boolean()
@@ -376,5 +401,7 @@ class Mutation(graphene.ObjectType):
     login = Login.Field()
     create_post = CreatePostMutation.Field()
     delete_post = DeletePostMutation.Field()
+
+    track_ad_impression = TrackAdImpression.Field()
 
 schema = graphene.Schema(query=Query, mutation=Mutation)
