@@ -8,8 +8,7 @@ from tinymce.models import HTMLField
 
 
 class Profile(models.Model):
-    objects = None
-    user = models.OneToOneField(User, on_delete=models.PROTECT)
+    user = models.OneToOneField(User, on_delete=models.PROTECT, related_name='profile')
     website = models.URLField(blank=True, null=True)
     bio = models.CharField(max_length=240, blank=True, null=True)
     image = models.ImageField(upload_to='profile_images/', null=True, blank=True)
@@ -24,11 +23,11 @@ class Tag(models.Model):
     def __str__(self):
         return self.name
 
+
 class Post(models.Model):
-    objects = None
-    
     class Meta:
         ordering = ["-publish_date"]
+
     id = models.AutoField(primary_key=True)
     title = models.CharField(max_length=255, unique=True)
     subtitle = models.CharField(max_length=255, blank=True, null=False)
@@ -42,37 +41,57 @@ class Post(models.Model):
     author = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='posts')
     tags = models.ManyToManyField(Tag, blank=True)
 
-    like_count = models.IntegerField(default=0)
-    dislike_count = models.IntegerField(default=0)
-    share_count = models.IntegerField(default=0)
-
     @property
     def excerpt(self):
         return self.body[:240]
 
     def get_absolute_url(self):
         return reverse("blog:post", kwargs={"slug": self.slug})
+
+    def delete(self, *args, **kwargs):
+        # Delete all interactions associated with the post
+        self.interactions.all().delete()
+        super().delete(*args, **kwargs)
+
     def save(self, *args, **kwargs):
         # Generate a unique slug based on the post's title
         if not self.slug:
             self.slug = slugify(self.title)
-            num=1
+            num = 1
             while Post.objects.filter(slug=self.slug).exists():
                 self.slug = f'{slugify(self.title)}-{num}'
                 num += 1
         super().save(*args, **kwargs)
 
+    def like_count(self):
+        return self.interactions.filter(like=True).count()
+
+    def dislike_count(self):
+        return self.interactions.filter(dislike=True).count()
+
+    def share_count(self):
+        return self.interactions.filter(share=True).count()
+
 
 class Interaction(models.Model):
-    post = models.ForeignKey(Post, related_name='interactions', on_delete=models.CASCADE)
-    session_id = models.CharField(max_length=255)
-    like = models.BooleanField(default=False)
-    dislike = models.BooleanField(default=False)
-    share = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+    ACTION_CHOICES = [
+        ('like', 'Like'),
+        ('dislike', 'Dislike'),
+        ('share', 'Share'),
+    ]
     
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="interactions")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)  # Optional for anonymous users
+    action = models.CharField(
+    max_length=10, 
+    choices=[('like', 'Like'), ('dislike', 'Dislike'), ('share', 'Share')],
+    default='like'  # Set a default value
+)
+    created_at = models.DateTimeField(auto_now_add=True)
+
     class Meta:
-        unique_together = ('post', 'session_id')
+        unique_together = ('post', 'user', 'action')  # Prevent duplicate actions per user
+
 
 class AdUnit(models.Model):
     name = models.CharField(max_length=100)  # Name of the ad slot
@@ -87,16 +106,18 @@ class AdUnit(models.Model):
     cost_per_impression = models.DecimalField(max_digits=10, decimal_places=2, default=0.05)  # Cost per impression
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
+
     def __str__(self):
         return self.name
-    
+
     def calculate_revenue(self):
         ''' Calculate revenue based on impressions and clicks
          Example: revenue = clicks * cost_per_click + impressions * cost_per_impression'''
         revenue = (self.clicks * self.cost_per_click) + (self.impressions * self.cost_per_impression)
         return revenue
+
+
 @receiver(pre_delete, sender=Post)
-def delete_related_interactions(sender,instance, **kwargs):
+def delete_related_interactions(sender, instance, **kwargs):
     # Delete related interactions
     instance.interactions.all().delete()
-

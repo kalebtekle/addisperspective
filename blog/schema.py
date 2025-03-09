@@ -7,11 +7,10 @@ from blog import models
 from django.contrib.auth import get_user_model
 from blog.models import Post, Profile
 
-class InteractionsType(graphene.ObjectType):
-    like_count = graphene.Int()
-    dislike_count = graphene.Int()
-    share_count = graphene.Int()
-
+class InteractionType(DjangoObjectType):
+    class Meta:
+        model = models.Interaction
+       
 User = get_user_model()
 class UserType(DjangoObjectType):
     class Meta:
@@ -41,7 +40,7 @@ class ProfileType(DjangoObjectType):
         return self.user  # Ensure this returns the related User instance
     
 class PostType(DjangoObjectType):
-    interactions = graphene.Field(InteractionsType)
+    interactions = graphene.List(InteractionType)
     is_admin_or_staff = graphene.Boolean()
     formatted_date = graphene.String()
     author = graphene.Field(ProfileType)
@@ -65,15 +64,8 @@ class PostType(DjangoObjectType):
     
     def resolve_interactions(self, info):
         interactions = models.Interaction.objects.filter(post=self)
-        like_count = interactions.filter(like=True).count()
-        dislike_count = interactions.filter(dislike=True).count()
-        share_count = interactions.filter(share=True).count()
-        
-        return InteractionsType(
-            like_count=like_count,
-            dislike_count=dislike_count,
-            share_count=share_count
-        )
+        return interactions if interactions.exists() else None # Return None instead of []
+
     def resolve_author(self, info):
         return self.author  # Ensure this returns a Profile object
     
@@ -189,7 +181,7 @@ class Query(graphene.ObjectType):
     user= graphene.Field(UserType)
 
     ad_units = graphene.List(AdUnitType, position=graphene.String())
-
+    interactions = graphene.List(InteractionType, post_id=graphene.ID(required=True))
     def resolve_posts(self, info):
         return models.Post.objects.all()
 
@@ -215,11 +207,8 @@ class Query(graphene.ObjectType):
         )
 
     def resolve_post_by_slug(root, info, slug):
-        return (
-            models.Post.objects.prefetch_related("tags")
-            .select_related("author")
-            .get(slug=slug)
-        )
+        return models.Post.objects.filter(slug=slug).first()
+    
     def resolve_post_by_id(self, info, id):
         try:
             return models.Post.objects.get(pk=id)
@@ -252,6 +241,10 @@ class Query(graphene.ObjectType):
         if position:
             return models.AdUnit.objects.filter(position=position)
         return models.AdUnit.objects.all()
+    
+    def resolve_interactions(self, info):
+        interactions = models.Interaction.objects.filter(post=self)
+        return interactions if interactions.exists() else None  # Return None instead of []
     
 class TrackAdImpression(graphene.Mutation):
     class Arguments:
@@ -286,7 +279,27 @@ class CustomObtainJSONWebToken(graphql_jwt.JSONWebTokenMutation):
         except Exception as e:
             return cls(success=False, message=str(e))
 
-class UpdateInteractions(graphene.Mutation):
+class UpdateInteraction(graphene.Mutation):
+    class Arguments:
+        post_id = graphene.ID(required=True)
+        action = graphene.String(required=True)
+
+    success = graphene.Boolean()
+    message = graphene.String()
+    interactions = graphene.Field(InteractionType)
+
+    def mutate(self, info, post_id, action):
+        try:
+            post = Post.objects.get(id=post_id)
+        except Post.DoesNotExist:
+            return UpdateInteraction(success=False, message="Post not found")
+
+        interaction, created = models.Interaction.objects.get_or_create(post=post, user=info.context.user)
+        interaction.action = action
+        interaction.save()
+
+        return UpdateInteraction(success=True, message="Interaction updated successfully", interactions=interaction)
+
     class Arguments:
         post_id = graphene.ID(required=True)
         action = graphene.String(required=True)
@@ -294,13 +307,13 @@ class UpdateInteractions(graphene.Mutation):
 
     success = graphene.Boolean()
     message = graphene.String()
-    interactions = graphene.Field(InteractionsType)
+    interactions = graphene.Field(InteractionType)
 
     def mutate(self, info, post_id, action, session_id):
         try:
             post = models.Post.objects.get(id=post_id)
         except models.Post.DoesNotExist:
-            return UpdateInteractions(success=False, message="Post not found")
+            return UpdateInteraction(success=False, message="Post not found")
 
         interaction, created = models.Interaction.objects.get_or_create(post=post, session_id=session_id)
 
@@ -334,15 +347,15 @@ class UpdateInteractions(graphene.Mutation):
         elif action == "share":
                     post.share_count += 1
         else:
-            return UpdateInteractions(success=False, message="Invalid action")
+            return UpdateInteraction(success=False, message="Invalid action")
 
         interaction.save()
         post.save()
 
-        return UpdateInteractions(
+        return UpdateInteraction(
             success=True,
             message="Interactions updated successfully",
-            interactions=InteractionsType(
+            interactions=InteractionType(
                 like_count=post.like_count,
                 dislike_count=post.dislike_count,
                 share_count=post.share_count
@@ -396,12 +409,12 @@ class Mutation(graphene.ObjectType):
     token_auth = CustomObtainJSONWebToken.Field()
     verify_token = graphql_jwt.Verify.Field()
     refresh_token = graphql_jwt.Refresh.Field()
-    update_interactions = UpdateInteractions.Field()
+    update_interactions = UpdateInteraction.Field()
     signup = Signup.Field()
     login = Login.Field()
     create_post = CreatePostMutation.Field()
     delete_post = DeletePostMutation.Field()
 
-    track_ad_impression = TrackAdImpression.Field()
+    track_ad_impression = TrackAdImpression.Field() # Track ad impressions
 
 schema = graphene.Schema(query=Query, mutation=Mutation)
