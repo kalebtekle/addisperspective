@@ -21,6 +21,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
+    'social_django',
     "graphene_django",
     "graphql_jwt",
     "corsheaders",
@@ -40,6 +45,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "corsheaders.middleware.CorsMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
 
 ]
 
@@ -91,6 +97,13 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Set the session cookie age in seconds (default is 1209600 seconds, or 2 weeks)
+SESSION_COOKIE_AGE = 1209600
+
+# Set whether the session expires when the user closes the browser
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+
 LANGUAGE_CODE = "en-us"
 
 TIME_ZONE = "UTC"
@@ -103,6 +116,10 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 
 STATICFILES_DIRS = [
   os.path.join(BASE_DIR, 'static'),
@@ -119,41 +136,44 @@ GRAPHENE = {
     ],
 }
 
+
+#SITE_ID = 1 # Required for django-allauth
+
 AUTHENTICATION_BACKENDS = [
     'graphql_jwt.backends.JSONWebTokenBackend',
     'django.contrib.auth.backends.ModelBackend',
     'blog.authentication.EmailBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+    'social_core.backends.google.GoogleOAuth2',
 ]
 
-CORS_ORIGIN_ALLOW_ALL = False
-CORS_ORIGIN_WHITELIST = ("http://localhost:8000",)
+'''SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = "your-google-client-id"
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = "your-google-client-secret" '''
+
+# CORS settings
+
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
-    "http://192.168.1.6:5173",
-       
 ]
 
-# Allow specific HTTP methods
-CORS_ALLOW_METHODS = [
-    'GET',
-    'POST',
-    'PUT',
-    'PATCH',
-    'DELETE',
-    'OPTIONS'
+CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
 ]
 
-# Allow specific headers
+CSRF_COOKIE_HTTPONLY = False  # allow frontend to read the cookie
+CSRF_COOKIE_SAMESITE = 'Lax'  # or 'None' for cross-origin with HTTPS
+CSRF_COOKIE_SECURE = False    # True in production (with HTTPS)
+
+# Optional: CORS headers (optional if already using django-cors-headers)
 CORS_ALLOW_HEADERS = [
     'authorization',
     'content-type',
-    'x-requested-with',
-    'accept',
-    'origin',
-    'user-agent',
-    'access-control-allow-origin',
     'x-csrftoken',
+    'x-requested-with',
 ]
+
 
 
 VITE_PROJECT_ROOT = BASE_DIR / 'frontend'

@@ -1,6 +1,8 @@
 from django.contrib.auth.models import User
 from django.db import models
 from django.db.models.signals import pre_delete
+from django.contrib.sessions.models import Session
+from django.utils import timezone
 from django.dispatch import receiver
 from django.shortcuts import reverse
 from django.utils.text import slugify
@@ -82,6 +84,7 @@ class Interaction(models.Model):
     
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="interactions")
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)  # Optional for anonymous users
+    session_id = models.ForeignKey(Session, on_delete=models.SET_NULL, null=True, blank=True)  # Ensure this is a ForeignKey
     action = models.CharField(
     max_length=10, 
     choices=[('like', 'Like'), ('dislike', 'Dislike'), ('share', 'Share')],
@@ -91,8 +94,30 @@ class Interaction(models.Model):
 
     class Meta:
         unique_together = ('post', 'user', 'action')  # Prevent duplicate actions per user
+    
+    def __str__(self):
+        return f"Interaction on {self.post.title} (Session: {self.session_id})"
+    
+    def save(self, *args, **kwargs):
+        if not self.session_id:
+            session = Session.objects.create(expire_date=timezone.now() + timezone.timedelta(seconds=1209600))  # Set expire_date
+            self.session_id = session.session_key
+        super().save(*args, **kwargs)
 
 
+class Book(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    author = models.CharField(max_length=255)
+    published_date = models.DateField()
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    cover_image= models.ImageField(upload_to='book_covers/', null=True, blank=True)
+    
+    @property
+    def excerpt(self):
+        return self.description[:240]
+    def __str__(self):
+        return self.title
 class AdUnit(models.Model):
     name = models.CharField(max_length=100)  # Name of the ad slot
     position = models.CharField(max_length=50)  # e.g., "sidebar", "header"

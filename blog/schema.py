@@ -6,10 +6,15 @@ from graphql_jwt.shortcuts import  get_token
 from blog import models
 from django.contrib.auth import get_user_model
 from blog.models import Post, Profile
+from social_django.utils import load_strategy
+from social_core.backends.google import GoogleOAuth2
+from social_core.exceptions import AuthTokenError
+from graphql_jwt.shortcuts import get_token
 
 class InteractionType(DjangoObjectType):
     class Meta:
         model = models.Interaction
+        fields ='__all__'
        
 User = get_user_model()
 class UserType(DjangoObjectType):
@@ -164,6 +169,150 @@ class DeletePostMutation(graphene.Mutation):
 class AdUnitType(DjangoObjectType):
     class Meta:
         model = models.AdUnit
+
+class TrackAdImpression(graphene.Mutation):
+    class Arguments:
+        ad_id = graphene.ID(required=True)
+
+    success = graphene.Boolean()
+
+    def mutate(self, info, ad_id):
+        try:
+            ad = models.AdUnit.objects.get(id=ad_id)
+            ad.impressions += 1
+            ad.save()
+            return TrackAdImpression(success=True)
+        except models.AdUnit.DoesNotExist:
+            return TrackAdImpression(success=False)
+class CustomObtainJSONWebToken(graphql_jwt.JSONWebTokenMutation):
+    user = graphene.Field(UserType)
+    success = graphene.Boolean()
+    message = graphene.String()
+
+    @classmethod
+    def resolve(cls, root, info, **kwargs):
+        user = info.context.user
+        return cls(user=user, success=True, message="Login successful")
+
+    @classmethod
+    def mutate(cls, root, info, **kwargs):
+        # Custom mutation logic with error handling
+        try:
+            result = super().mutate(root, info, **kwargs)
+            return result
+        except Exception as e:
+            return cls(success=False, message=str(e))
+
+class UpdateInteractions(graphene.Mutation):
+    class Arguments:
+        postId = graphene.ID(required=True)
+        action = graphene.String(required=True)
+        sessionId = graphene.String(required=True)
+
+    success = graphene.Boolean()
+    message = graphene.String()
+    interactions= graphene.Field(InteractionType)  # Use DjangoObjectType
+
+    def mutate(self, info, postId, action, sessionId=None):
+        try:
+            post = Post.objects.get(id=postId)
+        except Post.DoesNotExist:
+            return UpdateInteractions(success=False, message="Post not found")
+
+        interaction, created = models.Interaction.objects.get_or_create(post=post, action=action)
+
+        interaction.count += 1
+        interaction.save()
+
+        return UpdateInteractions(
+            success=True,
+            message=f"{action} updated successfully",
+            interaction=interaction
+        )
+class Signup(graphene.Mutation):
+    success = graphene.Boolean()
+    message = graphene.String()
+
+    class Arguments:
+        username = graphene.String(required=True)
+        email = graphene.String(required=True)
+        password = graphene.String(required=True)
+
+    def mutate(self,info, username, password, email):
+        user = User.objects.create_user(username=username, password=password, email=email)
+        return Signup(success=True, message="User registered successfully!")
+
+class Login(graphene.Mutation):
+    token = graphene.String()
+    success = graphene.Boolean()
+    message = graphene.String()
+    user = graphene.Field(UserType)
+
+    class Arguments:
+        email = graphene.String(required=True)
+        password = graphene.String(required=True)
+
+    def mutate(self, info, email, password):
+        user = User.objects.filter(email=email).first()
+        if user and user.check_password(password):  # Authenticate manually
+            token = get_token(user)
+            return Login(success=True, token=token, message="Login successful!", user=user)
+        return Login(success=False, token=None, message="Invalid credentials!")
+    
+    
+class AuthenticateWithGoogle(graphene.Mutation):
+    class Arguments:
+        token = graphene.String(required=True)
+
+    success = graphene.Boolean()
+    user_id = graphene.Int()
+    email = graphene.String()
+    jwt_token = graphene.String()
+
+    def mutate(self, info, token):
+        strategy = load_strategy()
+        backend = GoogleOAuth2(strategy=strategy)
+
+        try:
+            user_data = backend.do_auth(token)
+            user, created = User.objects.get_or_create(email=user_data.email)
+
+            jwt_token = get_token(user)  # Generate JWT token
+
+            return AuthenticateWithGoogle(
+                success=True, user_id=user.id, email=user.email, jwt_token=jwt_token
+            )
+        except AuthTokenError:
+            raise Exception("Invalid token")
+        
+class BookType(DjangoObjectType):
+    class Meta:
+        model = models.Book
+        fields = ("id", "title", "description",  "author",  "published_date", "price","cover_image")
+
+class CreateBook(graphene.Mutation):
+    class Arguments:
+        title = graphene.String(required=True)
+        description = graphene.String(required=True)
+        author = graphene.String(required=True)
+        published_date = graphene.Date(required=True)
+        price = graphene.Float(required=True)
+        cover_image = graphene.String(required=False)
+
+    book = graphene.Field(BookType)
+
+    def mutate(self, info, title, description, author, published_date, price,cover_image=None):
+        book = models.Book(
+            title=title,
+            description=description,
+            author=author,
+            published_date=published_date,
+            price=price,
+            cover_image=cover_image,
+        )
+        book.save()
+        return CreateBook(book=book)
+
 class Query(graphene.ObjectType):
     me=graphene.Field(UserType)
     all_posts = graphene.Field(PaginatedPostType, page=graphene.Int(), page_size=graphene.Int())
@@ -182,6 +331,7 @@ class Query(graphene.ObjectType):
 
     ad_units = graphene.List(AdUnitType, position=graphene.String())
     interactions = graphene.List(InteractionType, post_id=graphene.ID(required=True))
+    book_details = graphene.Field(BookType, id=graphene.ID(required=True))
     def resolve_posts(self, info):
         return models.Post.objects.all()
 
@@ -242,179 +392,26 @@ class Query(graphene.ObjectType):
             return models.AdUnit.objects.filter(position=position)
         return models.AdUnit.objects.all()
     
-    def resolve_interactions(self, info):
-        interactions = models.Interaction.objects.filter(post=self)
-        return interactions if interactions.exists() else None  # Return None instead of []
+    def resolve_interactions(self, info, post_id):
+        interactions = models.Interaction.objects.filter(post_id=post_id)
+        if not interactions.exists():
+            return []
+        return interactions # Ensure empty set is returned None instead of []
     
-class TrackAdImpression(graphene.Mutation):
-    class Arguments:
-        ad_id = graphene.ID(required=True)
-
-    success = graphene.Boolean()
-
-    def mutate(self, info, ad_id):
-        try:
-            ad = models.AdUnit.objects.get(id=ad_id)
-            ad.impressions += 1
-            ad.save()
-            return TrackAdImpression(success=True)
-        except models.AdUnit.DoesNotExist:
-            return TrackAdImpression(success=False)
-class CustomObtainJSONWebToken(graphql_jwt.JSONWebTokenMutation):
-    user = graphene.Field(UserType)
-    success = graphene.Boolean()
-    message = graphene.String()
-
-    @classmethod
-    def resolve(cls, root, info, **kwargs):
-        user = info.context.user
-        return cls(user=user, success=True, message="Login successful")
-
-    @classmethod
-    def mutate(cls, root, info, **kwargs):
-        # Custom mutation logic with error handling
-        try:
-            result = super().mutate(root, info, **kwargs)
-            return result
-        except Exception as e:
-            return cls(success=False, message=str(e))
-
-class UpdateInteraction(graphene.Mutation):
-    class Arguments:
-        post_id = graphene.ID(required=True)
-        action = graphene.String(required=True)
-
-    success = graphene.Boolean()
-    message = graphene.String()
-    interactions = graphene.Field(InteractionType)
-
-    def mutate(self, info, post_id, action):
-        try:
-            post = Post.objects.get(id=post_id)
-        except Post.DoesNotExist:
-            return UpdateInteraction(success=False, message="Post not found")
-
-        interaction, created = models.Interaction.objects.get_or_create(post=post, user=info.context.user)
-        interaction.action = action
-        interaction.save()
-
-        return UpdateInteraction(success=True, message="Interaction updated successfully", interactions=interaction)
-
-    class Arguments:
-        post_id = graphene.ID(required=True)
-        action = graphene.String(required=True)
-        session_id = graphene.String(required=True)
-
-    success = graphene.Boolean()
-    message = graphene.String()
-    interactions = graphene.Field(InteractionType)
-
-    def mutate(self, info, post_id, action, session_id):
-        try:
-            post = models.Post.objects.get(id=post_id)
-        except models.Post.DoesNotExist:
-            return UpdateInteraction(success=False, message="Post not found")
-
-        interaction, created = models.Interaction.objects.get_or_create(post=post, session_id=session_id)
-
-        if action == "like":
-            if interaction.like:
-                interaction.like = False
-                post.like_count -= 1
-                
-            else:
-                interaction.like = True
-                post.like_count += 1
-
-                 # If previously disliked, reset dislike
-                if interaction.dislike:
-                    interaction.dislike = False
-                    post.dislike_count -= 1 
-
-        elif action == "dislike":
-            if interaction.dislike:
-                interaction.dislike = False
-                post.dislike_count -= 1
-                
-            else:
-                interaction.dislike = True
-                post.dislike_count += 1
-
-                # If previously liked, reset like
-                if interaction.like:
-                    interaction.like = False
-                    post.like_count -= 1
-        elif action == "share":
-                    post.share_count += 1
-        else:
-            return UpdateInteraction(success=False, message="Invalid action")
-
-        interaction.save()
-        post.save()
-
-        return UpdateInteraction(
-            success=True,
-            message="Interactions updated successfully",
-            interactions=InteractionType(
-                like_count=post.like_count,
-                dislike_count=post.dislike_count,
-                share_count=post.share_count
-            )
-        )
-
-class Signup(graphene.Mutation):
-    success = graphene.Boolean()
-    message = graphene.String()
-
-    class Arguments:
-        username = graphene.String(required=True)
-        email = graphene.String(required=True)
-        password = graphene.String(required=True)
-
-    def mutate(self,info, username, password, email):
-        user = User.objects.create_user(username=username, password=password, email=email)
-        return Signup(success=True, message="User registered successfully!")
-
-class Login(graphene.Mutation):
-    token = graphene.String()
-    success = graphene.Boolean()
-    message = graphene.String()
-    user = graphene.Field(UserType)
-
-    class Arguments:
-        email = graphene.String(required=True)
-        password = graphene.String(required=True)
-
-    def mutate(self,info,email, password):
-        user = authenticate(email=email, password=password)
-        if user:
-            print("User authenticated successfully:", user)
-            # Generate JWT token for authenticated user
-            token = get_token(user)
-            print("Generated token:", token) # Check what token is being generated
-            if token:
-                return Login(
-                    success=True,
-                    token=token,
-                    message="Login successful!",
-                    user=user
-                )
-                
-            else:
-                return Login(success=False, token=None, message="Token generation failed!")
-        else:
-            return Login(success=False, token=None, message="Invalid credentials!")
-
+    def resolve_book_details(root, info, id):
+        return models.Book.objects.get(pk=id)
 class Mutation(graphene.ObjectType):
     token_auth = CustomObtainJSONWebToken.Field()
     verify_token = graphql_jwt.Verify.Field()
     refresh_token = graphql_jwt.Refresh.Field()
-    update_interactions = UpdateInteraction.Field()
+    update_interactions = UpdateInteractions.Field()
     signup = Signup.Field()
     login = Login.Field()
     create_post = CreatePostMutation.Field()
     delete_post = DeletePostMutation.Field()
 
     track_ad_impression = TrackAdImpression.Field() # Track ad impressions
+    authenticate_with_google = AuthenticateWithGoogle.Field()
 
+    create_book = CreateBook.Field()
 schema = graphene.Schema(query=Query, mutation=Mutation)

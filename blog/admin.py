@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from blog.models import Profile, Post, Tag, Interaction
+from blog.models import Profile, Post, Tag, Interaction, Book
 from django import forms
 from django.db import models
 
@@ -67,6 +67,11 @@ class PostAdmin(admin.ModelAdmin):
     }
     date_hierarchy = "publish_date"
     save_on_top = True
+
+
+@admin.register(Book)
+class TagAdmin(admin.ModelAdmin):
+    model = Book
 
 def delete_selected_interactions(modeladmin, request, queryset):
     """Custom action to delete selected interactions."""
