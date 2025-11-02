@@ -288,8 +288,13 @@ class AuthenticateWithGoogle(graphene.Mutation):
 class BookType(DjangoObjectType):
     class Meta:
         model = models.Book
-        fields = ("id", "title", "description",  "author",  "published_date", "price","cover_image")
+        fields = ("id", "title", "description",  "excerpt", "author",  "published_date", "price","cover_image")
+    
+    # Add a custom field for the excerpt
+    excerpt = graphene.String()
 
+    def resolve_excerpt(self, info):
+        return self.excerpt
 class CreateBook(graphene.Mutation):
     class Arguments:
         title = graphene.String(required=True)

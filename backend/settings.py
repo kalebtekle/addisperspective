@@ -9,9 +9,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = "gmkd4-*ew4fv!w8p!9qm(o2-qpmc$&jng-2jm!4l3$x^pn#tmu"
 
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = ['192.168.1.11', '192.168.1.6','localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['192.168.1.11', '192.168.1.6','localhost', '127.0.0.1', '.onrender.com']
 
 
 INSTALLED_APPS = [
@@ -38,6 +38,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -77,8 +78,9 @@ DJANGO_VITE = {
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        # "ENGINE": "django.db.backends.sqlite3",
+        # "NAME": BASE_DIR / "db.sqlite3",
+        dj_database_url.config(default=os.environ.get('DATABASE_URL'))
     }
 }
 
@@ -115,7 +117,8 @@ USE_L10N = True
 USE_TZ = True
 
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'

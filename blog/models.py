@@ -115,7 +115,7 @@ class Book(models.Model):
     
     @property
     def excerpt(self):
-        return self.description[:240]
+        return self.description[:500]
     def __str__(self):
         return self.title
 class AdUnit(models.Model):
