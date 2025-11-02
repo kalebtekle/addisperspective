@@ -11,7 +11,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-default-key')
 
 DEBUG = False
 
-ALLOWED_HOSTS = ['192.168.1.11', '192.168.1.6','localhost', '127.0.0.1', '.onrender.com']
+ALLOWED_HOSTS = ['192.168.1.11', '192.168.1.6','localhost', '127.0.0.1', 'addisperspective.onrender.com']
 
 
 INSTALLED_APPS = [
